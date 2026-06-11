@@ -58,6 +58,21 @@
   .saved-toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:var(--green); color:#0a3a1e; font-weight:700; padding:8px 20px; border-radius:99px; z-index:50; transition:opacity .4s; opacity:0; pointer-events:none; white-space:nowrap}
   .saved-toast.show{opacity:1}
   h3.sub{font-size:.85rem; color:var(--muted); margin:14px 0 6px; text-transform:uppercase; letter-spacing:1px}
+  .bigtoday{border:2px solid var(--accent); }
+  .bigtoday .todo .txt{font-size:1.1rem}
+  .bigtoday .todo{padding:13px 10px}
+  .agrow{display:flex; gap:8px; padding:9px 0; border-bottom:1px solid #e3e5ee; align-items:flex-start}
+  .agrow:last-child{border-bottom:none}
+  .agrow.today{background:#f0edff; border-radius:8px; padding:9px 6px}
+  .agday{width:78px; flex-shrink:0; font-weight:700; font-size:.8rem; color:var(--accent2); text-transform:capitalize; padding-top:3px}
+  .agrow.today .agday{color:var(--accent)}
+  .agtasks{flex:1}
+  .chip{display:inline-block; margin:2px 4px 2px 0; padding:3px 9px; border-radius:8px; font-size:.76rem; font-weight:600}
+  .c-alta{background:#fde2e2; color:#a33333}
+  .c-media{background:#fdf3d7; color:#8a6d00}
+  .c-bassa{background:#def7e7; color:#1c7a47}
+  .chip.done{text-decoration:line-through; opacity:.55}
+  .agfree{color:var(--muted); font-size:.76rem; font-style:italic; padding-top:4px}
   .help{font-size:.78rem; color:var(--muted); line-height:1.5; margin-top:6px}
   .help a{color:var(--accent2)}
 </style>
@@ -84,6 +99,9 @@
         <div><label>🔥 Calorie movimento</label><input type="number" id="d-calout" inputmode="numeric" placeholder="es. 400"></div>
         <div><label>🚬 Sigarette</label><input type="number" id="d-sig" inputmode="numeric" placeholder="0"></div>
         <div><label>🏋️ Allenamento</label><input type="text" id="d-allen" placeholder="es. palestra 1h"></div>
+        <div><label>🧑‍⚕️ Pazienti</label><input type="number" id="d-paz" inputmode="numeric" placeholder="es. 5"></div>
+        <div><label>📋 Ore AICS</label><input type="number" id="d-aics" step="0.5" inputmode="decimal" placeholder="es. 3"></div>
+        <div><label>🧠 Ore Alzheimer</label><input type="number" id="d-alz" step="0.5" inputmode="decimal" placeholder="es. 2"></div>
       </div>
       <label>📁 Progetti (su cosa hai lavorato)</label>
       <textarea id="d-prog" placeholder="es. avanzato sito web, studiato 1h..."></textarea>
@@ -120,6 +138,7 @@
           <label>Giorno</label>
           <select id="t-day">
             <option value="">Nessun giorno</option>
+            <option value="R">🔁 Tutti i giorni</option>
             <option value="1">Lunedì</option><option value="2">Martedì</option>
             <option value="3">Mercoledì</option><option value="4">Giovedì</option>
             <option value="5">Venerdì</option><option value="6">Sabato</option>
@@ -139,6 +158,14 @@
   <!-- ===== RECAP ===== -->
   <section id="tab-recap" class="hidden">
     <div class="motiv" id="motivbox"></div>
+    <div class="card bigtoday">
+      <h2 id="todaytitle">📅 Oggi</h2>
+      <div id="todaylist"></div>
+    </div>
+    <div class="card">
+      <h2>🗓️ Vista settimana</h2>
+      <div id="weekagenda"></div>
+    </div>
     <div class="card">
       <h2>📋 To-do per priorità</h2>
       <div id="recaplist"></div>
@@ -212,7 +239,7 @@ function showTab(name){
 }
 
 /* ===== TRACKER GIORNALIERO ===== */
-const dayFields = ['passi','sonno','calin','calout','sig','allen','prog','ok','ko','idee'];
+const dayFields = ['passi','sonno','calin','calout','sig','allen','paz','aics','alz','prog','ok','ko','idee'];
 
 function loadDay(){
   const date = document.getElementById('d-date').value;
@@ -239,7 +266,7 @@ function renderHistory(){
     if(!data) continue;
     const label = d.toLocaleDateString('it-IT',{weekday:'short', day:'numeric'});
     const bal = (data.calin||data.calout) ? ` ⚖️${(data.calin||0)-(data.calout||0)}` : '';
-    html += `<div class="histrow"><b>${label}</b><span>👣${data.passi||'–'} 🍽️${data.calin||'–'} 🔥${data.calout||'–'}${bal} 😴${data.sonno||'–'}h 🚬${data.sig||'–'}</span></div>`;
+    html += `<div class="histrow"><b>${label}</b><span>👣${data.passi||'–'} 🍽️${data.calin||'–'} 🔥${data.calout||'–'}${bal} 😴${data.sonno||'–'}h 🚬${data.sig||'–'} 🧑‍⚕️${data.paz||'–'} 📋${data.aics||'–'}h 🧠${data.alz||'–'}h</span></div>`;
   }
   box.innerHTML = html || '<div class="empty">Nessun dato ancora: salva la tua prima giornata!</div>';
 }
@@ -259,8 +286,19 @@ function addTodo(){
   renderWeek();
   toast('Aggiunto ✓');
 }
+function isDoneToday(t){
+  return t.day==='R' ? (t.doneDates||[]).includes(todayISO()) : t.done;
+}
 function toggleTodo(id){
-  setTodos(getTodos().map(t => t.id===id ? {...t, done:!t.done} : t));
+  setTodos(getTodos().map(t => {
+    if(t.id!==id) return t;
+    if(t.day==='R'){
+      const d = new Set(t.doneDates||[]);
+      d.has(todayISO()) ? d.delete(todayISO()) : d.add(todayISO());
+      return {...t, doneDates:[...d]};
+    }
+    return {...t, done:!t.done};
+  }));
   renderWeek(); renderRecap();
 }
 function delTodo(id){
@@ -271,17 +309,24 @@ function clearDone(){
   setTodos(getTodos().filter(t => !t.done));
   renderWeek();
 }
+function dayLabel(t){
+  if(t.day==='R') return ' 🔁 tutti i giorni';
+  return t.day!=='' ? ' '+DAYS[t.day] : '';
+}
 function todoHTML(t){
-  return `<div class="todo ${t.pri} ${t.done?'done':''}">
-    <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo(${t.id})">
+  const done = isDoneToday(t);
+  return `<div class="todo ${t.pri} ${done?'done':''}">
+    <input type="checkbox" ${done?'checked':''} onchange="toggleTodo(${t.id})">
     <div class="body"><div class="txt">${escapeHTML(t.txt)}</div>
-    <div class="meta"><span class="pill p-${t.pri}">${t.pri}</span>${t.day!=='' ? ' '+DAYS[t.day] : ''}</div></div>
+    <div class="meta"><span class="pill p-${t.pri}">${t.pri}</span>${dayLabel(t)}</div></div>
     <button class="del" onclick="delTodo(${t.id})">🗑️</button></div>`;
 }
 function renderWeek(){
   const todos = getTodos();
   const box = document.getElementById('weekview');
   let html = '';
+  const rec = todos.filter(t => t.day === 'R');
+  if(rec.length) html += `<div class="dayhead">🔁 Tutti i giorni</div>` + rec.map(todoHTML).join('');
   const order = [1,2,3,4,5,6,0];
   for(const d of order){
     const list = todos.filter(t => t.day == d);
@@ -332,12 +377,45 @@ function genMotiv(){
 
 /* ===== RECAP ===== */
 function renderRecap(){
-  const todos = getTodos().filter(t => !t.done);
   const pOrder = {alta:0, media:1, bassa:2};
-  todos.sort((a,b) => pOrder[a.pri]-pOrder[b.pri]);
+  const byPri = (a,b) => pOrder[a.pri]-pOrder[b.pri];
+  const all = getTodos();
+  const todos = all.filter(t => !isDoneToday(t)).sort(byPri);
 
   document.getElementById('motivbox').innerHTML =
     '<b>💪 Messaggio della settimana</b><br>' + escapeHTML(genMotiv());
+
+  // --- Oggi in primo piano ---
+  const todayDay = String(new Date().getDay());
+  document.getElementById('todaytitle').textContent =
+    '📅 Oggi — ' + new Date().toLocaleDateString('it-IT',{weekday:'long', day:'numeric', month:'long'});
+  const todayTasks = all.filter(t => t.day===todayDay || t.day==='R').sort(byPri);
+  document.getElementById('todaylist').innerHTML =
+    todayTasks.length ? todayTasks.map(todoHTML).join('')
+    : '<div class="empty">Niente in programma per oggi: goditela o pesca dalla lista! 🌿</div>';
+
+  // --- Vista agenda della settimana (lun → dom) ---
+  const chip = (t, dateISO) => {
+    const done = t.day==='R' ? (t.doneDates||[]).includes(dateISO) : t.done;
+    return `<span class="chip c-${t.pri} ${done?'done':''}">${t.day==='R'?'🔁 ':''}${escapeHTML(t.txt)}</span>`;
+  };
+  const monday = new Date();
+  monday.setDate(monday.getDate() - ((monday.getDay()+6)%7));
+  let ag = '';
+  for(let i=0;i<7;i++){
+    const d = new Date(monday); d.setDate(monday.getDate()+i);
+    const iso = d.toISOString().slice(0,10);
+    const isToday = iso === todayISO();
+    const list = all.filter(t => t.day == String(d.getDay()) || t.day === 'R').sort(byPri);
+    ag += `<div class="agrow ${isToday?'today':''}">
+      <div class="agday">${DAYS[d.getDay()].slice(0,3)} ${d.getDate()}${isToday?' •':''}</div>
+      <div class="agtasks">${list.length ? list.map(t=>chip(t,iso)).join('') : '<span class="agfree">libero</span>'}</div>
+    </div>`;
+  }
+  const noDay = all.filter(t => t.day==='' && !t.done).sort(byPri);
+  if(noDay.length) ag += `<div class="agrow"><div class="agday">Da piazzare</div>
+    <div class="agtasks">${noDay.map(t=>chip(t,'')).join('')}</div></div>`;
+  document.getElementById('weekagenda').innerHTML = ag;
 
   document.getElementById('recaplist').innerHTML =
     todos.length ? todos.map(todoHTML).join('') : '<div class="empty">Tutto fatto! 🎉</div>';
