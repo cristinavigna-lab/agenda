@@ -359,11 +359,8 @@ function buildAdvice(nAlta, nMedia, tot){
 /* ===== SYNC CLOUD (GitHub contents API) ===== */
 function getCfg(){ return store.get('syncCfg', null) }
 function saveSettings(){
-  const cfg = {
-    user: document.getElementById('s-user').value.trim(),
-    repo: document.getElementById('s-repo').value.trim(),
-    token: document.getElementById('s-token').value.trim()
-  };
+  const clean = id => document.getElementById(id).value.replace(/\s+/g, '');
+  const cfg = { user: clean('s-user'), repo: clean('s-repo'), token: clean('s-token') };
   if(!cfg.user || !cfg.repo || !cfg.token) return toast('Compila tutti i campi');
   store.set('syncCfg', cfg);
   toast('Impostazioni salvate ✓');
@@ -399,6 +396,12 @@ async function ghFile(method, body){
   });
   return res;
 }
+function syncErrMsg(status){
+  if(status === 401) return 'Token non valido o scaduto (401)';
+  if(status === 403) return 'Token senza permesso Contents (403)';
+  if(status === 404) return 'Repo non trovato: controlla utente/repository o accesso del token (404)';
+  return 'Errore di rete o servizio (' + status + ')';
+}
 let pushTimer = null;
 function cloudPush(manual){
   if(!getCfg()) { if(manual) toast('Configura prima la sincronizzazione'); return }
@@ -407,13 +410,14 @@ function cloudPush(manual){
     try{
       setSyncStatus('☁️ sincronizzo…');
       const get = await ghFile('GET');
+      if(!get.ok && get.status !== 404) throw new Error(get.status);
       const sha = get.ok ? (await get.json()).sha : undefined;
       const content = btoa(unescape(encodeURIComponent(JSON.stringify(collectData(), null, 2))));
       const put = await ghFile('PUT', { message:'sync dati agenda', content, sha });
       if(!put.ok) throw new Error(put.status);
       setSyncStatus('☁️ sincronizzato ' + new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
       if(manual) toast('Caricato sul cloud ✓');
-    }catch(e){ setSyncStatus('⚠️ errore sync'); if(manual) toast('Errore: controlla token e repo') }
+    }catch(e){ const m = syncErrMsg(+e.message||0); setSyncStatus('⚠️ '+m); if(manual) toast(m) }
   }, manual ? 0 : 1500);
 }
 async function cloudPull(manual){
@@ -427,7 +431,7 @@ async function cloudPull(manual){
     applyData(JSON.parse(decodeURIComponent(escape(atob(json.content)))));
     setSyncStatus('☁️ aggiornato ' + new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
     if(manual) toast('Scaricato dal cloud ✓');
-  }catch(e){ setSyncStatus('⚠️ errore sync'); if(manual) toast('Errore: controlla token e repo') }
+  }catch(e){ const m = syncErrMsg(+e.message||0); setSyncStatus('⚠️ '+m); if(manual) toast(m) }
 }
 
 /* ===== BACKUP FILE ===== */
