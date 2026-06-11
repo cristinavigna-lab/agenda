@@ -1,0 +1,32 @@
+name: Email recap del lunedì
+
+on:
+  schedule:
+    # 05:30 UTC = 07:30 ora italiana (estate) / 06:30 (inverno)
+    - cron: '30 5 * * 1'
+  workflow_dispatch: {}
+
+jobs:
+  send-recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Genera il recap
+        run: node scripts/build-recap.mjs
+
+      - name: Invia l'email
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "📋 La tua settimana — recap del lunedì"
+          to: ${{ secrets.MAIL_TO }}
+          from: "La Mia Agenda <${{ secrets.MAIL_USERNAME }}>"
+          html_body: file://email.html

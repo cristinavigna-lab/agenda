@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12121f">
+<link rel="manifest" href="manifest.json">
+<title>La Mia Agenda</title>
+<style>
+  :root{
+    --bg:#12121f; --card:#1e1e32; --card2:#26263e; --text:#eef0f6; --muted:#9aa0b5;
+    --accent:#7c6cf0; --accent2:#4ecdc4; --red:#ff6b6b; --yellow:#ffd166; --green:#6ee7a0;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); padding-bottom:80px}
+  header{padding:18px 16px 8px; text-align:center}
+  header h1{margin:0; font-size:1.3rem; letter-spacing:.5px}
+  header .date{color:var(--muted); font-size:.85rem; margin-top:4px}
+  .syncdot{font-size:.7rem; color:var(--muted); margin-top:2px}
+  .tabs{position:fixed; bottom:0; left:0; right:0; display:flex; background:var(--card); border-top:1px solid #333350; z-index:10; padding-bottom:env(safe-area-inset-bottom)}
+  .tabs button{flex:1; background:none; border:none; color:var(--muted); padding:12px 2px 10px; font-size:.68rem; cursor:pointer}
+  .tabs button .ico{display:block; font-size:1.25rem; margin-bottom:2px}
+  .tabs button.active{color:var(--accent2)}
+  main{padding:8px 14px; max-width:560px; margin:0 auto}
+  .card{background:var(--card); border-radius:var(--radius); padding:14px; margin-bottom:12px}
+  .card h2{margin:0 0 10px; font-size:1rem; color:var(--accent2)}
+  label{display:block; font-size:.8rem; color:var(--muted); margin:8px 0 4px}
+  input,textarea,select{width:100%; background:var(--card2); border:1px solid #3a3a58; border-radius:10px; color:var(--text); padding:10px; font-size:1rem; font-family:inherit}
+  textarea{min-height:64px; resize:vertical}
+  .row{display:flex; gap:10px}
+  .row>div{flex:1}
+  .btn{display:inline-block; width:100%; background:var(--accent); color:#fff; border:none; border-radius:10px; padding:13px; font-size:1rem; font-weight:600; cursor:pointer; margin-top:10px; text-align:center; text-decoration:none}
+  .btn.secondary{background:var(--card2); border:1px solid #3a3a58}
+  .btn.small{width:auto; padding:8px 14px; font-size:.85rem; margin-top:0}
+  .hidden{display:none}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .pill{display:inline-block; padding:2px 10px; border-radius:99px; font-size:.72rem; font-weight:700}
+  .p-alta{background:var(--red); color:#3a0a0a}
+  .p-media{background:var(--yellow); color:#4a3800}
+  .p-bassa{background:var(--green); color:#0a3a1e}
+  .todo{display:flex; align-items:flex-start; gap:10px; background:var(--card2); border-radius:10px; padding:10px; margin-bottom:8px; border-left:4px solid var(--muted)}
+  .todo.alta{border-left-color:var(--red)}
+  .todo.media{border-left-color:var(--yellow)}
+  .todo.bassa{border-left-color:var(--green)}
+  .todo.done .txt{text-decoration:line-through; color:var(--muted)}
+  .todo input[type=checkbox]{width:22px; height:22px; margin-top:2px; accent-color:var(--accent2)}
+  .todo .body{flex:1}
+  .todo .txt{font-size:.95rem}
+  .todo .meta{font-size:.72rem; color:var(--muted); margin-top:3px}
+  .todo .del{background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer; padding:2px 6px}
+  .daygrid{display:grid; gap:8px}
+  .dayhead{font-size:.85rem; font-weight:700; color:var(--accent2); margin:10px 0 4px; text-transform:capitalize}
+  .empty{color:var(--muted); font-size:.85rem; font-style:italic}
+  .motiv{background:linear-gradient(135deg,#3b2f7a,#1f4d4a); border-radius:var(--radius); padding:16px; margin-bottom:12px; font-size:.95rem; line-height:1.5}
+  .motiv b{color:var(--accent2)}
+  .histrow{display:flex; justify-content:space-between; font-size:.85rem; padding:6px 0; border-bottom:1px solid #2e2e48}
+  .saved-toast{position:fixed; top:14px; left:50%; transform:translateX(-50%); background:var(--green); color:#0a3a1e; font-weight:700; padding:8px 20px; border-radius:99px; z-index:50; transition:opacity .4s; opacity:0; pointer-events:none; white-space:nowrap}
+  .saved-toast.show{opacity:1}
+  h3.sub{font-size:.85rem; color:var(--muted); margin:14px 0 6px; text-transform:uppercase; letter-spacing:1px}
+  .help{font-size:.78rem; color:var(--muted); line-height:1.5; margin-top:6px}
+  .help a{color:var(--accent2)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📒 La Mia Agenda</h1>
+  <div class="date" id="todayLabel"></div>
+  <div class="syncdot" id="syncStatus"></div>
+</header>
+<div class="saved-toast" id="toast">Salvato ✓</div>
+
+<main>
+  <!-- ===== OGGI ===== -->
+  <section id="tab-oggi">
+    <div class="card">
+      <h2>📊 Tracker del giorno</h2>
+      <label>Data</label>
+      <input type="date" id="d-date">
+      <div class="stat-grid">
+        <div><label>👣 Passi</label><input type="number" id="d-passi" inputmode="numeric" placeholder="es. 8000"></div>
+        <div><label>😴 Ore di sonno</label><input type="number" id="d-sonno" step="0.5" inputmode="decimal" placeholder="es. 7.5"></div>
+        <div><label>🍽️ Calorie cibo</label><input type="number" id="d-calin" inputmode="numeric" placeholder="es. 2000"></div>
+        <div><label>🔥 Calorie movimento</label><input type="number" id="d-calout" inputmode="numeric" placeholder="es. 400"></div>
+        <div><label>🚬 Sigarette</label><input type="number" id="d-sig" inputmode="numeric" placeholder="0"></div>
+        <div><label>🏋️ Allenamento</label><input type="text" id="d-allen" placeholder="es. palestra 1h"></div>
+      </div>
+      <label>📁 Progetti (su cosa hai lavorato)</label>
+      <textarea id="d-prog" placeholder="es. avanzato sito web, studiato 1h..."></textarea>
+      <label>✅ Cosa ha funzionato</label>
+      <textarea id="d-ok" placeholder="cosa è andato bene oggi..."></textarea>
+      <label>❌ Cosa non ha funzionato</label>
+      <textarea id="d-ko" placeholder="cosa migliorare..."></textarea>
+      <label>💡 Idee del giorno</label>
+      <textarea id="d-idee" placeholder="idee, spunti, intuizioni..."></textarea>
+      <button class="btn" onclick="saveDay()">Salva giornata</button>
+    </div>
+    <div class="card">
+      <h2>📈 Ultimi 7 giorni</h2>
+      <div id="history"></div>
+    </div>
+  </section>
+
+  <!-- ===== SETTIMANA ===== -->
+  <section id="tab-settimana" class="hidden">
+    <div class="card">
+      <h2>➕ Nuova cosa da fare</h2>
+      <label>Cosa</label>
+      <input type="text" id="t-txt" placeholder="es. chiamare il commercialista">
+      <div class="row">
+        <div>
+          <label>Priorità</label>
+          <select id="t-pri">
+            <option value="alta">🔴 Alta</option>
+            <option value="media" selected>🟡 Media</option>
+            <option value="bassa">🟢 Bassa</option>
+          </select>
+        </div>
+        <div>
+          <label>Giorno</label>
+          <select id="t-day">
+            <option value="">Nessun giorno</option>
+            <option value="1">Lunedì</option><option value="2">Martedì</option>
+            <option value="3">Mercoledì</option><option value="4">Giovedì</option>
+            <option value="5">Venerdì</option><option value="6">Sabato</option>
+            <option value="0">Domenica</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" onclick="addTodo()">Aggiungi</button>
+    </div>
+    <div class="card">
+      <h2>🗓️ La settimana</h2>
+      <div id="weekview" class="daygrid"></div>
+      <button class="btn secondary" onclick="clearDone()">Elimina le cose completate</button>
+    </div>
+  </section>
+
+  <!-- ===== RECAP ===== -->
+  <section id="tab-recap" class="hidden">
+    <div class="motiv" id="motivbox"></div>
+    <div class="card">
+      <h2>📋 To-do per priorità</h2>
+      <div id="recaplist"></div>
+      <h3 class="sub">Consigli sull'ordine</h3>
+      <div id="advice" style="font-size:.9rem; line-height:1.6"></div>
+      <div class="help">📬 Ogni lunedì mattina ricevi automaticamente questo recap via email, con un messaggio motivazionale nuovo generato apposta per te.</div>
+    </div>
+  </section>
+
+  <!-- ===== IMPOSTAZIONI ===== -->
+  <section id="tab-impostazioni" class="hidden">
+    <div class="card">
+      <h2>☁️ Sincronizzazione cloud</h2>
+      <div class="help">Collega l'app a GitHub per salvare i dati nel cloud: così telefono e PC vedono gli stessi dati e l'email del lunedì legge la tua lista aggiornata.</div>
+      <label>Utente GitHub</label>
+      <input type="text" id="s-user" placeholder="il-tuo-username">
+      <label>Repository</label>
+      <input type="text" id="s-repo" placeholder="agenda" value="agenda">
+      <label>Token GitHub (fine-grained, permesso Contents)</label>
+      <input type="password" id="s-token" placeholder="github_pat_...">
+      <div class="help">Crealo su <a href="https://github.com/settings/personal-access-tokens/new" target="_blank">github.com → Settings → Developer settings → Tokens</a>: scegli solo il repository dell'agenda e dai permesso "Contents: Read and write". Scadenza lunga (1 anno).</div>
+      <button class="btn" onclick="saveSettings()">Salva impostazioni</button>
+      <div class="row" style="margin-top:10px">
+        <button class="btn secondary small" onclick="cloudPull(true)">⬇️ Scarica dal cloud</button>
+        <button class="btn secondary small" onclick="cloudPush(true)">⬆️ Carica sul cloud</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>💾 Backup su file</h2>
+      <div class="row">
+        <button class="btn secondary small" onclick="exportData()">Esporta</button>
+        <button class="btn secondary small" onclick="document.getElementById('importfile').click()">Importa</button>
+      </div>
+      <input type="file" id="importfile" class="hidden" accept=".json" onchange="importData(event)">
+    </div>
+  </section>
+</main>
+
+<div class="tabs">
+  <button id="tb-oggi" class="active" onclick="showTab('oggi')"><span class="ico">📊</span>Oggi</button>
+  <button id="tb-settimana" onclick="showTab('settimana')"><span class="ico">🗓️</span>Settimana</button>
+  <button id="tb-recap" onclick="showTab('recap')"><span class="ico">📋</span>Recap</button>
+  <button id="tb-impostazioni" onclick="showTab('impostazioni')"><span class="ico">⚙️</span>Opzioni</button>
+</div>
+
+<script>
+const DAYS = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
+const store = {
+  get(k, def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def }catch{ return def } },
+  set(k, v){ localStorage.setItem(k, JSON.stringify(v)) }
+};
+const todayISO = () => new Date().toISOString().slice(0,10);
+
+document.getElementById('todayLabel').textContent =
+  new Date().toLocaleDateString('it-IT',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function showTab(name){
+  for(const n of ['oggi','settimana','recap','impostazioni']){
+    document.getElementById('tab-'+n).classList.toggle('hidden', n!==name);
+    document.getElementById('tb-'+n).classList.toggle('active', n===name);
+  }
+  if(name==='settimana') renderWeek();
+  if(name==='recap') renderRecap();
+  if(name==='oggi') renderHistory();
+}
+
+/* ===== TRACKER GIORNALIERO ===== */
+const dayFields = ['passi','sonno','calin','calout','sig','allen','prog','ok','ko','idee'];
+
+function loadDay(){
+  const date = document.getElementById('d-date').value;
+  const data = store.get('day-'+date, {});
+  for(const f of dayFields) document.getElementById('d-'+f).value = data[f] ?? '';
+}
+function saveDay(){
+  const date = document.getElementById('d-date').value;
+  if(!date) return toast('Scegli una data');
+  const data = {};
+  for(const f of dayFields) data[f] = document.getElementById('d-'+f).value;
+  store.set('day-'+date, data);
+  renderHistory();
+  toast('Salvato ✓');
+  cloudPush();
+}
+function renderHistory(){
+  const box = document.getElementById('history');
+  let html = '';
+  for(let i=0;i<7;i++){
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const iso = d.toISOString().slice(0,10);
+    const data = store.get('day-'+iso, null);
+    if(!data) continue;
+    const label = d.toLocaleDateString('it-IT',{weekday:'short', day:'numeric'});
+    const bal = (data.calin||data.calout) ? ` ⚖️${(data.calin||0)-(data.calout||0)}` : '';
+    html += `<div class="histrow"><b>${label}</b><span>👣${data.passi||'–'} 🍽️${data.calin||'–'} 🔥${data.calout||'–'}${bal} 😴${data.sonno||'–'}h 🚬${data.sig||'–'}</span></div>`;
+  }
+  box.innerHTML = html || '<div class="empty">Nessun dato ancora: salva la tua prima giornata!</div>';
+}
+
+/* ===== TO-DO SETTIMANALE ===== */
+function getTodos(){ return store.get('todos', []) }
+function setTodos(t){ store.set('todos', t); cloudPush() }
+
+function addTodo(){
+  const txt = document.getElementById('t-txt').value.trim();
+  if(!txt) return toast('Scrivi cosa fare');
+  const todos = getTodos();
+  todos.push({ id:Date.now(), txt, pri:document.getElementById('t-pri').value,
+               day:document.getElementById('t-day').value, done:false });
+  setTodos(todos);
+  document.getElementById('t-txt').value='';
+  renderWeek();
+  toast('Aggiunto ✓');
+}
+function toggleTodo(id){
+  setTodos(getTodos().map(t => t.id===id ? {...t, done:!t.done} : t));
+  renderWeek(); renderRecap();
+}
+function delTodo(id){
+  setTodos(getTodos().filter(t => t.id!==id));
+  renderWeek(); renderRecap();
+}
+function clearDone(){
+  setTodos(getTodos().filter(t => !t.done));
+  renderWeek();
+}
+function todoHTML(t){
+  return `<div class="todo ${t.pri} ${t.done?'done':''}">
+    <input type="checkbox" ${t.done?'checked':''} onchange="toggleTodo(${t.id})">
+    <div class="body"><div class="txt">${escapeHTML(t.txt)}</div>
+    <div class="meta"><span class="pill p-${t.pri}">${t.pri}</span>${t.day!=='' ? ' '+DAYS[t.day] : ''}</div></div>
+    <button class="del" onclick="delTodo(${t.id})">🗑️</button></div>`;
+}
+function renderWeek(){
+  const todos = getTodos();
+  const box = document.getElementById('weekview');
+  let html = '';
+  const order = [1,2,3,4,5,6,0];
+  for(const d of order){
+    const list = todos.filter(t => t.day == d);
+    if(!list.length) continue;
+    html += `<div class="dayhead">${DAYS[d]}</div>` + list.map(todoHTML).join('');
+  }
+  const noDay = todos.filter(t => t.day === '');
+  if(noDay.length) html += `<div class="dayhead">Senza giorno</div>` + noDay.map(todoHTML).join('');
+  box.innerHTML = html || '<div class="empty">Settimana vuota: aggiungi la prima cosa da fare!</div>';
+}
+function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) }
+
+/* ===== MESSAGGI MOTIVAZIONALI AUTO-GENERATI =====
+   Generatore combinatorio: apertura + nucleo + chiusura, scelti con un
+   seme legato alla settimana → ogni settimana una frase diversa, mai ripetuta a breve. */
+const GEN = {
+  aperture: [
+    'Nuova settimana, foglio bianco:', 'Oggi si riparte:', 'Lunedì è il tuo alleato:',
+    'Sette giorni davanti a te:', 'Questa settimana conta:', 'Riprendi il ritmo:',
+    'Un passo alla volta:', 'La costanza batte il talento:', 'Piccole vittorie, grandi risultati:'
+  ],
+  nuclei: [
+    'ogni passo che segni, ogni sigaretta in meno, ogni ora di sonno in più è un mattone del te futuro',
+    'non devi fare tutto, devi solo fare la prossima cosa sulla lista',
+    'la disciplina è scegliere ciò che vuoi di più rispetto a ciò che vuoi adesso',
+    'le cose difficili fatte per prime rendono leggero tutto il resto',
+    'stai costruendo abitudini, non solo completando compiti',
+    'il corpo che alleni e i progetti che porti avanti sono la stessa cosa: investimenti su di te',
+    'chi misura migliora: i numeri che segni ogni giorno sono già metà del lavoro',
+    'la motivazione ti fa iniziare, l’abitudine ti fa continuare'
+  ],
+  chiusure: [
+    'Parti dalla cosa rossa più importante, adesso. 💪',
+    'Il te stesso di dicembre ti ringrazierà. 🚀',
+    'Una spunta oggi vale più di dieci propositi. ✅',
+    'Fai che stasera tu possa dirti: fatto. 🔥',
+    'Ricorda perché hai iniziato. 🌱',
+    'Vinci la mattinata e vincerai la giornata. ☀️'
+  ]
+};
+function mulberry(seed){ return function(){ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296 } }
+function genMotiv(){
+  const week = Math.floor(Date.now()/(7*86400000));
+  const rnd = mulberry(week*7919);
+  const pick = a => a[Math.floor(rnd()*a.length)];
+  return pick(GEN.aperture)+' '+pick(GEN.nuclei)+'. '+pick(GEN.chiusure);
+}
+
+/* ===== RECAP ===== */
+function renderRecap(){
+  const todos = getTodos().filter(t => !t.done);
+  const pOrder = {alta:0, media:1, bassa:2};
+  todos.sort((a,b) => pOrder[a.pri]-pOrder[b.pri]);
+
+  document.getElementById('motivbox').innerHTML =
+    '<b>💪 Messaggio della settimana</b><br>' + escapeHTML(genMotiv());
+
+  document.getElementById('recaplist').innerHTML =
+    todos.length ? todos.map(todoHTML).join('') : '<div class="empty">Tutto fatto! 🎉</div>';
+
+  const nAlta = todos.filter(t=>t.pri==='alta').length;
+  const nMedia = todos.filter(t=>t.pri==='media').length;
+  document.getElementById('advice').innerHTML = buildAdvice(nAlta, nMedia, todos.length);
+}
+function buildAdvice(nAlta, nMedia, tot){
+  if(!tot) return 'Lista vuota: pianifica la prossima settimana nella scheda Settimana.';
+  let a = [];
+  if(nAlta) a.push(`🔴 Inizia dalle <b>${nAlta} cose ad alta priorità</b>, possibilmente lunedì e martedì mattina quando hai più energia.`);
+  if(nMedia) a.push(`🟡 Le ${nMedia} a media priorità mettile a metà settimana, una o due al giorno.`);
+  a.push('🟢 Le verdi sono jolly: incastrale nei momenti liberi o spostale senza sensi di colpa.');
+  a.push('⏱️ Regola d’oro: la cosa più importante falla per prima, prima che la giornata decida per te.');
+  return a.join('<br>');
+}
+
+/* ===== SYNC CLOUD (GitHub contents API) ===== */
+function getCfg(){ return store.get('syncCfg', null) }
+function saveSettings(){
+  const cfg = {
+    user: document.getElementById('s-user').value.trim(),
+    repo: document.getElementById('s-repo').value.trim(),
+    token: document.getElementById('s-token').value.trim()
+  };
+  if(!cfg.user || !cfg.repo || !cfg.token) return toast('Compila tutti i campi');
+  store.set('syncCfg', cfg);
+  toast('Impostazioni salvate ✓');
+  cloudPull(true);
+}
+function loadSettings(){
+  const cfg = getCfg();
+  if(!cfg) return;
+  document.getElementById('s-user').value = cfg.user;
+  document.getElementById('s-repo').value = cfg.repo;
+  document.getElementById('s-token').value = cfg.token;
+}
+function setSyncStatus(msg){ document.getElementById('syncStatus').textContent = msg }
+
+function collectData(){
+  const data = { todos: getTodos(), days:{}, updated: new Date().toISOString() };
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k.startsWith('day-')) data.days[k.slice(4)] = store.get(k, {});
+  }
+  return data;
+}
+function applyData(data){
+  if(data.todos) store.set('todos', data.todos);
+  if(data.days) for(const d in data.days) store.set('day-'+d, data.days[d]);
+  loadDay(); renderHistory(); renderWeek();
+}
+async function ghFile(method, body){
+  const cfg = getCfg();
+  const res = await fetch(`https://api.github.com/repos/${cfg.user}/${cfg.repo}/contents/data.json`, {
+    method, headers:{ Authorization:'Bearer '+cfg.token, Accept:'application/vnd.github+json' },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  return res;
+}
+let pushTimer = null;
+function cloudPush(manual){
+  if(!getCfg()) { if(manual) toast('Configura prima la sincronizzazione'); return }
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    try{
+      setSyncStatus('☁️ sincronizzo…');
+      const get = await ghFile('GET');
+      const sha = get.ok ? (await get.json()).sha : undefined;
+      const content = btoa(unescape(encodeURIComponent(JSON.stringify(collectData(), null, 2))));
+      const put = await ghFile('PUT', { message:'sync dati agenda', content, sha });
+      if(!put.ok) throw new Error(put.status);
+      setSyncStatus('☁️ sincronizzato ' + new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
+      if(manual) toast('Caricato sul cloud ✓');
+    }catch(e){ setSyncStatus('⚠️ errore sync'); if(manual) toast('Errore: controlla token e repo') }
+  }, manual ? 0 : 1500);
+}
+async function cloudPull(manual){
+  if(!getCfg()) { if(manual) toast('Configura prima la sincronizzazione'); return }
+  try{
+    setSyncStatus('☁️ scarico…');
+    const res = await ghFile('GET');
+    if(res.status === 404){ setSyncStatus('☁️ nessun dato sul cloud ancora'); return }
+    if(!res.ok) throw new Error(res.status);
+    const json = await res.json();
+    applyData(JSON.parse(decodeURIComponent(escape(atob(json.content)))));
+    setSyncStatus('☁️ aggiornato ' + new Date().toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}));
+    if(manual) toast('Scaricato dal cloud ✓');
+  }catch(e){ setSyncStatus('⚠️ errore sync'); if(manual) toast('Errore: controlla token e repo') }
+}
+
+/* ===== BACKUP FILE ===== */
+function exportData(){
+  const blob = new Blob([JSON.stringify(collectData(),null,2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'agenda-backup-' + todayISO() + '.json';
+  a.click();
+}
+function importData(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{ applyData(JSON.parse(r.result)); toast('Importato ✓') }
+    catch{ toast('File non valido') }
+  };
+  r.readAsText(file);
+}
+
+/* ===== AVVIO ===== */
+document.getElementById('d-date').value = todayISO();
+document.getElementById('d-date').addEventListener('change', loadDay);
+loadDay();
+renderHistory();
+loadSettings();
+cloudPull();
+
+const isMonday = new Date().getDay() === 1;
+if(isMonday && store.get('lastMondayRecap','') !== todayISO()){
+  store.set('lastMondayRecap', todayISO());
+  showTab('recap');
+  toast('📋 È lunedì: ecco il tuo recap!');
+}
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

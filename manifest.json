@@ -1,0 +1,16 @@
+{
+  "name": "La Mia Agenda",
+  "short_name": "Agenda",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#12121f",
+  "theme_color": "#12121f",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
