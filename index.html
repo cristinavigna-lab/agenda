@@ -146,6 +146,8 @@
           </select>
         </div>
       </div>
+      <label>📅 Oppure una data precisa (vince sul giorno)</label>
+      <input type="date" id="t-date">
       <button class="btn" onclick="addTodo()">Aggiungi</button>
     </div>
     <div class="card">
@@ -279,10 +281,12 @@ function addTodo(){
   const txt = document.getElementById('t-txt').value.trim();
   if(!txt) return toast('Scrivi cosa fare');
   const todos = getTodos();
+  const date = document.getElementById('t-date').value;
   todos.push({ id:Date.now(), txt, pri:document.getElementById('t-pri').value,
-               day:document.getElementById('t-day').value, done:false });
+               day: date ? '' : document.getElementById('t-day').value, date, done:false });
   setTodos(todos);
   document.getElementById('t-txt').value='';
+  document.getElementById('t-date').value='';
   renderWeek();
   toast('Aggiunto ✓');
 }
@@ -309,9 +313,17 @@ function clearDone(){
   setTodos(getTodos().filter(t => !t.done));
   renderWeek();
 }
+function fmtDate(iso){
+  return new Date(iso+'T00:00').toLocaleDateString('it-IT',{weekday:'short', day:'numeric', month:'short'});
+}
 function dayLabel(t){
+  if(t.date) return ' 📅 ' + fmtDate(t.date);
   if(t.day==='R') return ' 🔁 tutti i giorni';
   return t.day!=='' ? ' '+DAYS[t.day] : '';
+}
+function weekMonday(){
+  const m = new Date(); m.setDate(m.getDate() - ((m.getDay()+6)%7));
+  return m;
 }
 function todoHTML(t){
   const done = isDoneToday(t);
@@ -327,13 +339,21 @@ function renderWeek(){
   let html = '';
   const rec = todos.filter(t => t.day === 'R');
   if(rec.length) html += `<div class="dayhead">🔁 Tutti i giorni</div>` + rec.map(todoHTML).join('');
-  const order = [1,2,3,4,5,6,0];
-  for(const d of order){
-    const list = todos.filter(t => t.day == d);
+  const monday = weekMonday();
+  for(let i=0;i<7;i++){
+    const d = new Date(monday); d.setDate(monday.getDate()+i);
+    const iso = d.toISOString().slice(0,10);
+    const list = todos.filter(t => t.date ? t.date===iso : t.day == String(d.getDay()));
     if(!list.length) continue;
-    html += `<div class="dayhead">${DAYS[d]}</div>` + list.map(todoHTML).join('');
+    html += `<div class="dayhead">${DAYS[d.getDay()]} ${d.getDate()}</div>` + list.map(todoHTML).join('');
   }
-  const noDay = todos.filter(t => t.day === '');
+  const mondayISO = monday.toISOString().slice(0,10);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  const sundayISO = sunday.toISOString().slice(0,10);
+  const otherDates = todos.filter(t => t.date && (t.date < mondayISO || t.date > sundayISO))
+                          .sort((a,b) => a.date < b.date ? -1 : 1);
+  if(otherDates.length) html += `<div class="dayhead">📅 Altre date</div>` + otherDates.map(todoHTML).join('');
+  const noDay = todos.filter(t => t.day === '' && !t.date);
   if(noDay.length) html += `<div class="dayhead">Senza giorno</div>` + noDay.map(todoHTML).join('');
   box.innerHTML = html || '<div class="empty">Settimana vuota: aggiungi la prima cosa da fare!</div>';
 }
@@ -389,7 +409,7 @@ function renderRecap(){
   const todayDay = String(new Date().getDay());
   document.getElementById('todaytitle').textContent =
     '📅 Oggi — ' + new Date().toLocaleDateString('it-IT',{weekday:'long', day:'numeric', month:'long'});
-  const todayTasks = all.filter(t => t.day===todayDay || t.day==='R').sort(byPri);
+  const todayTasks = all.filter(t => t.date ? t.date===todayISO() : (t.day===todayDay || t.day==='R')).sort(byPri);
   document.getElementById('todaylist').innerHTML =
     todayTasks.length ? todayTasks.map(todoHTML).join('')
     : '<div class="empty">Niente in programma per oggi: goditela o pesca dalla lista! 🌿</div>';
@@ -406,13 +426,13 @@ function renderRecap(){
     const d = new Date(monday); d.setDate(monday.getDate()+i);
     const iso = d.toISOString().slice(0,10);
     const isToday = iso === todayISO();
-    const list = all.filter(t => t.day == String(d.getDay()) || t.day === 'R').sort(byPri);
+    const list = all.filter(t => t.date ? t.date===iso : (t.day == String(d.getDay()) || t.day === 'R')).sort(byPri);
     ag += `<div class="agrow ${isToday?'today':''}">
       <div class="agday">${DAYS[d.getDay()].slice(0,3)} ${d.getDate()}${isToday?' •':''}</div>
       <div class="agtasks">${list.length ? list.map(t=>chip(t,iso)).join('') : '<span class="agfree">libero</span>'}</div>
     </div>`;
   }
-  const noDay = all.filter(t => t.day==='' && !t.done).sort(byPri);
+  const noDay = all.filter(t => t.day==='' && !t.date && !t.done).sort(byPri);
   if(noDay.length) ag += `<div class="agrow"><div class="agday">Da piazzare</div>
     <div class="agtasks">${noDay.map(t=>chip(t,'')).join('')}</div></div>`;
   document.getElementById('weekagenda').innerHTML = ag;
